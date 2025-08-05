@@ -1,0 +1,32 @@
+# Mapeo de columnas para el archivo de Clientes
+# 'nombre_columna_en_excel': 'nombre_columna_en_bd'
+clientes_map:
+  dni: 'dni'
+  cliente: 'cliente'
+  moneda: 'moneda'
+  deudatotal: 'deudatotal'
+  deudatotalsoles: 'deudatotalsoles'
+  deudatotalacumulado: 'deudatotalacumulado'
+  campaña: 'campania'
+  estado: 'estado'
+  subcartera: 'subcartera'
+  tipo_contacto: 'tipo_contacto'
+  contacto_dinamico: 'contacto_dinamico'
+  rango_antiguedad: 'rango_antiguedad'
+  SEGMENTACION: 'segmentacion'
+  deudacampania: 'deudacampania'
+  clientesnuevos: 'clientesnuevos'
+  COBERTURADOHUMANO: 'coberturadohumano'
+  CAJAS_MEDICION: 'cajas_medicion'
+  estado_cliente: 'estado_cliente'
+  situacion_laboral: 'situacion_laboral'
+
+# Mapeo de columnas para los archivos de Envíos
+envios_map:
+  'NOMBRE DE BASE': 'nombre_base'
+  'IDC': 'dni'
+  'CORREO': 'correo'
+  'TELEFONO': 'telefono'
+  'FECHA': 'fecha_envio'
+  'CANAL': 'canal'
+  'CARTERA': 'cartera'

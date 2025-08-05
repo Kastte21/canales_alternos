@@ -1,136 +1,60 @@
-# Sincronización de Clientes y Envíos - PostgreSQL
+# Sincronización de Clientes y Envíos - PostgreSQL (Versión Optimizada)
 
-Este proyecto permite sincronizar datos de clientes desde archivos Excel hacia una base de datos PostgreSQL, comparando cada fila usando el campo 'dni' como identificador único. También incluye funcionalidad para cargar envíos desde archivos consolidados. El proyecto está estructurado de manera modular para facilitar el mantenimiento y extensión.
+Este proyecto ofrece una solución robusta y de alto rendimiento para sincronizar datos desde archivos Excel hacia una base de datos PostgreSQL. Ha sido completamente refactorizado para procesar grandes volúmenes de datos de manera eficiente, precisa y segura, utilizando operaciones en lote y una arquitectura modular y escalable.
 
-## Características Generales
+Incluye dos módulos principales:
 
-- Compara cada fila del Excel con los datos actuales en la BD
-- Identifica exactamente qué columnas cambiaron
-- Muestra los valores anteriores y nuevos
-- Inserta clientes nuevos automáticamente
-- Actualiza solo las columnas que cambiaron
-- Reporte detallado en consola de todos los cambios
-- Soporte para variables de entorno (.env)
-- Estructura modular y reutilizable
-- **NUEVO:** Carga de envíos desde archivos consolidados
-- **NUEVO:** Procesamiento de múltiples canales (CORREO, SMS)
+1. **Sincronización de Clientes:** Compara un archivo maestro de clientes con la base de datos, identificando registros nuevos, actualizados e inactivos, y aplicando los cambios en lote.
+2. **Carga de Envíos:** Carga archivos consolidados de canales de forma idempotente, verificando si los datos han cambiado antes de realizar cualquier operación en la base de datos.
+
+---
+
+## ✨ Características Principales
+
+- **🚀 Rendimiento Extremo:** Utiliza operaciones `bulk` de PostgreSQL (`execute_values`) para inserciones y actualizaciones masivas, procesando cientos de miles de registros en segundos.
+- **💡 Comparación Inteligente:** La lógica de comparación de clientes es inmune a diferencias de tipos de datos (ej. `float` vs `Decimal`) y maneja correctamente valores nulos y cadenas vacías para evitar falsos positivos.
+- **🔄 Carga Idempotente:** El módulo de carga de envíos calcula una "huella digital" (hash) de los datos de origen. Si los datos no han cambiado desde la última carga, **no se realiza ninguna operación de escritura en la base de datos**.
+- **🔧 Configuración Flexible:** El mapeo de columnas de Excel a la base de datos se gestiona a través de un archivo externo (`config/mappings.yml`), permitiendo adaptar el script a nuevos formatos sin modificar el código.
+- **⚙️ Lógica de Negocio Integrada:** Capacidad para calcular campos dinámicamente durante la carga de datos, como el campo `deudacampania` basado en el porcentaje de la campaña.
+- **📊 Reportes Automáticos:** Genera un resumen detallado en formato Excel (`.xlsx`) de los clientes nuevos, actualizados e inactivos después de cada sincronización.
+- **🖥️ Interfaz de Usuario Sencilla:** Un menú interactivo en la consola guía al usuario para ejecutar las diferentes tareas.
+- **🧱 Arquitectura Modular:** El código está organizado en módulos con responsabilidades claras (configuración, utilidades, base de datos, sincronización), facilitando su mantenimiento y extensión.
+
+---
+
+## 📂 Estructura del Proyecto (Refactorizada)
+
+La estructura ha sido simplificada y optimizada para eliminar redundancia y mejorar la mantenibilidad.
 
 ## Estructura del Proyecto
 
 ```
 Carga_CANALES_ALTERNOS/
+├── config/
+│ └── mappings.yml 		# Mapeo de columnas Excel -> BD
 ├── data/
-│   ├── input/
-│   │   ├── DATOS_ESTRATEGIA.xlsx
-│   │   └── CONSOLIDADO/
-│   │       └── CONSOLIDADO_CA_30_07_2025.xlsx
-│   └── output/
-│       └── resumen_sincronizacion.xlsx
+│ ├── input/
+│ │ ├── DATOS_ESTRATEGIA.xlsx
+│ │ └── CONSOLIDADO/
+│ │ └── CONSOLIDADO_CA_30_07_2025.xlsx
+│ └── output/
+│ └── resumen_sincronizacion.xlsx
 ├── src/
-│   ├── config/
-│   │   ├── __init__.py
-│   │   ├── database.py              # Configuración de BD clientes
-│   │   └── envios_database.py       # Configuración de BD envíos
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── file_utils.py            # Manejo de archivos clientes
-│   │   ├── envios_file_utils.py     # Manejo de archivos envíos
-│   │   └── comparison.py            # Comparaciones y validaciones
-│   ├── database/
-│   │   ├── __init__.py
-│   │   ├── queries.py               # Consultas SQL clientes
-│   │   └── envios_queries.py        # Consultas SQL envíos
-│   ├── reports/
-│   │   ├── __init__.py
-│   │   └── generator.py             # Generación de reportes
-│   ├── sync/
-│   │   ├── __init__.py
-│   │   ├── synchronizer.py          # Lógica principal de sincronización
-│   │   └── envios_synchronizer.py   # Lógica de sincronización envíos
-│   ├── sync_detallado.py            # Script detallado
-│   ├── sync_simplificado.py         # Script simplificado
-│   ├── sync_optimizado.py           # Script optimizado
-│   ├── sync_envios.py               # Script de envíos
-│   └── __init__.py
-├── notebooks/
-│   ├── cargar.ipynb                 # Notebook de análisis
-│   └── bases de datos.psql          # Scripts SQL
-├── main.py                          # Script principal con menú
-├── requirements.txt                  # Dependencias
-└── README.md                        # Este archivo
-```
-
-## Tipos de Sincronización
-
-### 1. Sincronización Detallada
-
-**Script:** `src/sync_detallado.py`
-
-**Características:**
-
-- Comparación detallada fila por fila
-- Muestra cambios específicos con valores antes/después
-- Reporte en consola de cada cliente nuevo o actualizado
-- Procesamiento individual de cada registro
-- Ideal para análisis detallado de cambios
-
-**Uso:**
-
-```bash
-python src/sync_detallado.py
-```
-
-### 2. Sincronización Simplificada
-
-**Script:** `src/sync_simplificado.py`
-
-**Características:**
-
-- Upsert directo sin comparaciones previas
-- Procesamiento más rápido
-- Menos uso de memoria
-- Reporte básico de progreso
-- Ideal para sincronizaciones masivas
-
-**Uso:**
-
-```bash
-python src/sync_simplificado.py
-```
-
-### 3. Sincronización Optimizada
-
-**Script:** `src/sync_optimizado.py`
-
-**Características:**
-
-- Procesamiento en lotes (batch) para mejor rendimiento
-- Detección de clientes inactivos
-- Generación de reportes Excel automáticos
-- Campo 'activo' para soft delete
-- Comparación optimizada de cambios
-
-**Uso:**
-
-```bash
-python src/sync_optimizado.py
-```
-
-### 4. Carga de Envíos desde CONSOLIDADO
-
-**Script:** `src/sync_envios.py`
-
-**Características:**
-
-- Carga automática de todos los archivos Excel en `data/input/CONSOLIDADO/`
-- Mapeo inteligente de columnas
-- Estadísticas detalladas por canal y base
-- Procesamiento en lotes optimizado
-
-**Uso:**
-
-```bash
-python src/sync_envios.py
+│ ├── config/
+│ │ └── database.py 		# Lógica de conexión a BD centralizada
+│ ├── database/
+│ │ └── queries.py 		# TODAS las consultas a la BD
+│ ├── reports/
+│ │ └── generator.py 		# Generador de reportes Excel
+│ ├── sync/
+│ │ ├── envios_synchronizer.py 	# Lógica de sincronización de envíos (con hash)
+│ │ └── synchronizer.py 	# Lógica de sincronización de clientes
+│ └── utils/
+│ └── file_handler.py 		# Manejador de archivos y lógica de cálculo
+├── .env 			# Credenciales de la base de datos
+├── main.py 			# Script principal con menú interactivo
+├── requirements.txt 		# Dependencias del proyecto
+└── README.md
 ```
 
 ## Instalación
@@ -152,43 +76,6 @@ DB_HOST=localhost
 DB_PORT=5432
 ```
 
-## Uso
-
-### Script Principal con Menú
-
-```bash
-python main.py
-```
-
-### Ejecución Directa de Scripts
-
-```bash
-# Versión detallada (recomendada para análisis)
-python src/sync_detallado.py
-
-# Versión simplificada (recomendada para carga masiva)
-python src/sync_simplificado.py
-
-# Versión optimizada (recomendada para producción y análisis})
-python src/sync_optimizado.py
-
-# Carga de envíos (nueva funcionalidad)
-python src/sync_envios.py
-```
-
-### Uso como Módulo
-
-```python
-from src.sync.synchronizer import ClienteSynchronizer
-from src.sync.envios_synchronizer import EnviosSynchronizer
-
-with ClienteSynchronizer() as sync:
-    sync.sincronizar_optimizado()
-
-with EnviosSynchronizer() as sync:
-    sync.sincronizar_envios()
-```
-
 ## Formatos de Archivos Excel
 
 ### Archivo de Clientes (`DATOS_ESTRATEGIA.xlsx`)
@@ -197,6 +84,9 @@ Debe contener las siguientes columnas:
 
 - `dni` (identificador único)
 - `cliente`
+- `moneda`
+- `deudatotal`
+- `deudatotalsoles`
 - `deudatotalacumulado`
 - `campaña` (se mapea a `campania`)
 - `estado`
@@ -224,82 +114,6 @@ Debe contener las siguientes columnas:
 - `CANAL` (tipo de canal: CORREO, SMS, etc.)
 - `CARTERA` (tipo de cartera)
 
-## Salida de los Scripts
-
-### Sincronización Detallada
-
-```
-============================================================
-SINCRONIZACIÓN DETALLADA DE CLIENTES
-============================================================
-Inicio: 2024-01-15 14:30:25
-
-Archivo encontrado: data/input/DATOS_ESTRATEGIA.xlsx
-Datos cargados: 7 registros
-
-============================================================
-PROCESANDO CAMBIOS
-============================================================
-
-🆕 CLIENTE NUEVO - DNI: 173257780
-   Nombre: PEREDA MINANO ALBERTH GIUSEPPE
-
-🔄 CLIENTE ACTUALIZADO - DNI: 173261033
-   Nombre: CLAUDET CHUSHO JEAN PIERRE
-   Cambios detectados:
-     • deudatotalacumulado: 55000.00 → 59788.15
-     • campania: 50% → 55%
-
-============================================================
-RESUMEN FINAL
-============================================================
-🆕 Nuevos insertados:     1
-🔄 Clientes actualizados: 1
-⏸️  Sin cambios:          5
-🕔 Duración: 0:00:03.123456
-🕔 Finalización: 2024-01-15 14:30:28
-============================================================
-```
-
-### Carga de Envíos
-
-```
-============================================================
-CARGA DE ENVÍOS DESDE CONSOLIDADO
-============================================================
-Inicio: 2025-08-04 17:54:54
-
-📁 Archivos encontrados en CONSOLIDADO: 1
-
-📄 Procesando: CONSOLIDADO_CA_30_07_2025.xlsx
-✅ Datos procesados: 453,130 registros
-   • DNI: 215,543 únicos
-   • Canal: ['CORREO' 'SMS']
-
-Procesando archivos: 100%|██████████| 1/1 [00:45<00:00, 45.23s/it]
-✅ Insertados 453,130 registros
-
-============================================================
-RESUMEN DE CARGA DE ENVÍOS
-============================================================
-📁 Archivos procesados:     1
-📊 Registros insertados:     453,130
-📈 Total envíos en BD:       453,130
-⏱️  Duración:                0:00:45.123456
-🕔 Finalización:             2025-08-04 17:55:39
-
-📊 Envíos por canal:
-   • CORREO: 350,000
-   • SMS: 103,130
-
-📋 Envíos por nombre de base:
-   • 30_SOFIA_CO: 453,130
-
-📅 Últimos envíos por fecha:
-   • 2025-07-30: 453,130
-============================================================
-```
-
 ## Tablas de Base de Datos
 
 ### Tabla `clientes`
@@ -308,7 +122,7 @@ RESUMEN DE CARGA DE ENVÍOS
 CREATE TABLE clientes (
     dni VARCHAR(20) PRIMARY KEY,
     cliente TEXT,
-    deudatotalacumulado DECIMAL,
+    deudatotalacumulado NUMERIC,
     campania TEXT,
     estado TEXT,
     subcartera TEXT,
@@ -316,12 +130,15 @@ CREATE TABLE clientes (
     contacto_dinamico TEXT,
     rango_antiguedad TEXT,
     segmentacion TEXT,
-    deudacampania DECIMAL,
+    deudacampania NUMERIC,
     clientesnuevos TEXT,
     coberturadohumano INTEGER,
     cajas_medicion TEXT,
     estado_cliente TEXT,
     situacion_laboral TEXT,
+    moneda VARCHAR(5),
+    deudatotal NUMERIC,
+    deudatotalsoles NUMERIC,
     activo BOOLEAN DEFAULT true
 );
 ```
@@ -332,50 +149,60 @@ CREATE TABLE clientes (
 CREATE TABLE envios_canales (
     id_envio SERIAL PRIMARY KEY,
     dni VARCHAR(20) NOT NULL,
-    fecha_envio DATE NOT NULL,
-    canal TEXT NOT NULL,
-    nombre_base TEXT NOT NULL,
+    fecha_envio DATE,
+    canal TEXT,
+    nombre_base TEXT,
     correo TEXT,
     telefono TEXT
 );
 ```
 
+### Tabla `sync_metadata`
+
+```sql
+CREATE TABLE envios_canales (
+    id_envio SERIAL PRIMARY KEY,
+    dni VARCHAR(20) NOT NULL,
+    fecha_envio DATE,
+    canal TEXT,
+    nombre_base TEXT,
+    correo TEXT,
+    telefono TEXT
+);
+```
+
+## Uso
+
+### Script Principal con Menú
+
+```bash
+python main.py
+```
+
+Aparecerá el menú principal con las opciones optimizadas:
+
+```bash
+============================================================
+MENÚ PRINCIPAL DE SINCRONIZACIÓN
+============================================================
+1. Sincronizar Clientes (Rápido, con reporte)
+2. Sincronizar Clientes (Modo Auditoría Detallada)
+3. Cargar Envíos desde CONSOLIDADO
+4. Salir
+============================================================
+```
+
+- **Opción 1:** La opción estándar para producción. Rápida, eficiente y genera el reporte en Excel.
+- **Opción 2:** Ideal para depuración. Hace lo mismo que la opción 1, pero además imprime en consola los valores exactos que cambiaron para cada cliente actualizado.
+- **Opción 3:** Carga los envíos.
+
 ## Reportes Generados
 
-La versión optimizada genera automáticamente un archivo Excel con tres hojas:
+Genera un archivo Excel con tres hojas:
 
 - **Actualizados:** Clientes que fueron modificados
 - **Nuevos:** Clientes recién insertados
 - **Inactivos:** Clientes que ya no están en el Excel
-
-## Arquitectura Modular
-
-### Módulos Principales
-
-#### `src/config/`
-
-- **`database.py`** - Configuración de conexión a BD para clientes
-- **`envios_database.py`** - Configuración de conexión a BD para envíos
-
-#### `src/utils/`
-
-- **`file_utils.py`** - Búsqueda y carga de archivos Excel de clientes
-- **`envios_file_utils.py`** - Búsqueda y carga de archivos Excel de envíos
-- **`comparison.py`** - Comparaciones entre registros
-
-#### `src/database/`
-
-- **`queries.py`** - Generación de consultas SQL para clientes
-- **`envios_queries.py`** - Generación de consultas SQL para envíos
-
-#### `src/sync/`
-
-- **`synchronizer.py`** - Clase principal de sincronización de clientes
-- **`envios_synchronizer.py`** - Clase principal de sincronización de envíos
-
-#### `src/reports/`
-
-- **`generator.py`** - Generación de reportes Excel
 
 ## Dependencias
 
@@ -395,30 +222,11 @@ tqdm==4.66.1
 
 ## Notas Importantes
 
-- **Transacciones:** Todos los scripts usan transacciones para garantizar consistencia
-- **Rollback automático:** Si ocurre un error, se hace rollback automático
-- **Manejo de NULL:** Los valores NULL se manejan correctamente en las comparaciones
-- **Idempotencia:** Los scripts son idempotentes (se pueden ejecutar múltiples veces)
-- **Variables de entorno:** Configuración segura de credenciales de BD
-- **Múltiples rutas:** Búsqueda automática del archivo Excel en diferentes ubicaciones
-- **Context Manager:** Uso de context managers para manejo seguro de conexiones
-- **Limpieza de datos:** Teléfonos se limpian automáticamente (remueve .0)
-- **Mapeo inteligente:** Columnas se mapean automáticamente según el formato del Excel
+---
 
-## Recomendaciones de Uso
-
-- **Sincronización Detallada:** Para análisis detallado y auditoría de cambios
-- **Sincronización Simplificada:** Para sincronizaciones rápidas y masivas
-- **Sincronización Optimizada:** Para entornos de producción con reportes automáticos
-- **Carga de Envíos:** Para procesar archivos consolidados de campañas de marketing
-
-## Ventajas de la Nueva Estructura
-
-1. **Modularidad:** Código organizado en módulos específicos
-2. **Reutilización:** Funciones y clases reutilizables
-3. **Mantenibilidad:** Fácil de mantener y extender
-4. **Testabilidad:** Estructura que facilita las pruebas unitarias
-5. **Escalabilidad:** Fácil agregar nuevas funcionalidades
-6. **Separación de responsabilidades:** Cada módulo tiene una función específica
-7. **Flexibilidad:** Soporte para múltiples tipos de archivos y formatos
-8. **Robustez:** Manejo de errores y validaciones mejoradas
+- **Idempotencia Real:** Ambos módulos están diseñados para ser idempotentes. Puedes ejecutar el script de sincronización de clientes o el de carga de envíos múltiples veces con los mismos datos de entrada y el estado final de la base de datos será el mismo, minimizando operaciones de escritura innecesarias.
+- **Rendimiento de la Comparación:** La comparación de clientes se realiza en memoria utilizando las capacidades vectorizadas de Pandas después de una normalización de datos exhaustiva. Esto es órdenes de magnitud más rápido que iterar y comparar fila por fila.
+- **Consistencia de Datos en `deudacampania`:** El script **ignora deliberadamente** los valores de la columna `deudacampania` del archivo Excel de clientes. En su lugar, la **recalcula** usando la lógica definida en `src/utils/file_handler.py`. Esto garantiza que los datos en la base de datos sean siempre consistentes y correctos, independientemente de la calidad de esa columna en el archivo de origen.
+- **Manejo de "Soft Delete":** Los clientes que desaparecen del archivo Excel no se eliminan de la base de datos. En su lugar, se marcan como inactivos (`activo = false`). Esto preserva el historial y permite reactivarlos si vuelven a aparecer en futuras sincronizaciones.
+- **Limpieza de Datos Automática:** El script realiza limpiezas de datos básicas de forma automática, como eliminar espacios en blanco (`strip()`) de los strings y limpiar el sufijo `.0` de los números de teléfono que a veces añade Excel.
+- **Flexibilidad del Mapeo de Columnas:** Si un nuevo archivo Excel tiene columnas con nombres diferentes, no es necesario modificar el código Python. Simplemente ajusta el archivo `config/mappings.yml` para que coincida con la nueva estructura.

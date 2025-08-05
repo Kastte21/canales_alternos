@@ -1,207 +1,134 @@
+# src/sync/synchronizer.py
 import pandas as pd
 from datetime import datetime
-from tqdm import tqdm
+from decimal import Decimal
 
-from src.config.database import conectar_db, obtener_clientes_actuales
-from src.utils.file_utils import buscar_archivo_excel, cargar_datos_excel
-from src.utils.comparison import comparar_cambios, comparar_filas_detallado
-from src.database.queries import generar_upsert_query, upsert_cliente, marcar_clientes_inactivos
-from src.reports.generator import generar_reportes_excel, crear_dataframes_resumen
+from src.config.database import get_db_connection
+from src.utils import file_handler
+from src.database import queries as db_queries
+from src.reports.generator import generar_reporte_sincronizacion
 
-class ClienteSynchronizer:    
+class ClienteSynchronizer:
     def __init__(self, nombre_archivo="DATOS_ESTRATEGIA.xlsx"):
         self.nombre_archivo = nombre_archivo
         self.conn = None
         self.cursor = None
-        
+
     def __enter__(self):
-        self.conn = conectar_db()
+        self.conn = get_db_connection()
         self.cursor = self.conn.cursor()
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.conn:
             if exc_type:
+                print(f"❌ Ocurrió un error. Revirtiendo transacción: {exc_val}")
                 self.conn.rollback()
             else:
+                print("✅ Transacción completada con éxito.")
                 self.conn.commit()
             self.conn.close()
-    
-    def cargar_datos(self):
-        archivo = buscar_archivo_excel(self.nombre_archivo)
-        print(f"Archivo encontrado: {archivo}")
+
+    def _normalize_for_comparison(self, value):
+        """
+        Normaliza un valor para una comparación consistente.
+        ¡ESTA ES LA VERSIÓN CORREGIDA Y FINAL!
+        """
+        # 1. Tratar NaN, None y cadenas vacías/espacios como un único concepto: "sin valor"
+        if value is None or pd.isna(value) or (isinstance(value, str) and not value.strip()):
+            return None
         
-        df_nuevo = cargar_datos_excel(archivo)
-        print(f"Datos cargados: {len(df_nuevo)} registros")
+        # 2. Convertir números a un formato decimal estándar sin ceros finales
+        if isinstance(value, (int, float, Decimal)):
+            return Decimal(str(value)).normalize()
+
+        # 3. Quitar espacios de cualquier otra cadena de texto
+        if isinstance(value, str):
+            return value.strip()
         
-        return df_nuevo
-    
-    def sincronizar_detallado(self):
+        # 4. Para cualquier otro tipo (fechas, etc.), convertir a string como último recurso
+        return str(value)
+
+    def run_synchronization(self, generate_report=True, detailed_output=False):
+        inicio = datetime.now()
+        print("=" * 60)
+        print("INICIANDO SINCRONIZACIÓN OPTIMIZADA DE CLIENTES")
+        print(f"Inicio: {inicio.strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=" * 60)
+
         try:
-            inicio = datetime.now()
-            print("=" * 60)
-            print("SINCRONIZACIÓN DETALLADA DE CLIENTES")
-            print("=" * 60)
-            print(f"Inicio: {inicio.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            path_excel = file_handler.find_excel_file(self.nombre_archivo)
+            df_excel = file_handler.load_and_map_excel(path_excel, "clientes_map")
+            df_db = db_queries.get_all_clientes_as_df(self.cursor)
+
+            df_nuevos, df_actualizados, dnis_inactivos = self._compare_dataframes(df_excel, df_db)
             
-            df_nuevo = self.cargar_datos()
-            clientes_actuales = obtener_clientes_actuales(self.cursor)
-            
-            nuevos = actualizados = sin_cambios = 0
-            columnas_comparacion = [col for col in df_nuevo.columns if col != 'dni']
-            
-            print("=" * 60)
-            print("PROCESANDO CAMBIOS")
-            print("=" * 60)
-            
-            for idx, row_nuevo in df_nuevo.iterrows():
-                dni = str(row_nuevo['dni'])
-                actual = clientes_actuales[clientes_actuales.index == dni]
-                
-                if actual.empty:
-                    print(f"\n → CLIENTE NUEVO - DNI: {dni}")
-                    print(f"   Nombre: {row_nuevo.get('cliente', 'N/A')}")
-                    upsert_cliente(self.cursor, row_nuevo)
-                    nuevos += 1
-                else:
-                    row_actual = actual.iloc[0].to_dict()
-                    cambios = comparar_filas_detallado(row_nuevo, row_actual, columnas_comparacion)
-                    
-                    if cambios:
-                        print(f"\n → CLIENTE ACTUALIZADO - DNI: {dni}")
-                        print(f"   Nombre: {row_nuevo.get('cliente', 'N/A')}")
-                        print("   Cambios detectados:")
-                        for col, val in cambios.items():
-                            print(f"     • {col}: {val['antes']} → {val['despues']}")
-                        upsert_cliente(self.cursor, row_nuevo)
-                        actualizados += 1
-                    else:
-                        sin_cambios += 1
-                
-                if (idx + 1) % 10000 == 0:
-                    print(f"  → Procesados: {idx + 1}")
-            
-            self._mostrar_resumen_detallado(nuevos, actualizados, sin_cambios, inicio)
-            
+            print("\n🔄 Aplicando cambios en la base de datos...")
+            df_para_upsert = pd.concat([df_nuevos, df_actualizados])
+            upserted = db_queries.bulk_upsert_clientes(self.cursor, df_para_upsert)
+            deactivated = db_queries.bulk_deactivate_clientes(self.cursor, dnis_inactivos)
+            print(f"  → {upserted} clientes insertados/actualizados.")
+            print(f"  → {deactivated} clientes marcados como inactivos.")
+
+            archivo_resumen = None
+            if generate_report and (not df_nuevos.empty or not df_actualizados.empty or dnis_inactivos):
+                df_inactivos_reporte = pd.DataFrame(list(dnis_inactivos), columns=['dni'])
+                archivo_resumen = generar_reporte_sincronizacion(df_nuevos, df_actualizados, df_inactivos_reporte)
+
+            sin_cambios = len(df_excel) - len(df_nuevos) - len(df_actualizados)
+            self._mostrar_resumen(len(df_nuevos), len(df_actualizados), deactivated, sin_cambios, archivo_resumen, inicio)
+
+            if detailed_output and not df_actualizados.empty:
+                self._show_detailed_changes(df_actualizados, df_db)
+
         except Exception as e:
-            print(f"\nERROR: {e}")
+            print(f"\n❌ Error catastrófico durante la sincronización: {e}")
             raise
-    
-    def sincronizar_simplificado(self):
-        try:
-            inicio = datetime.now()
-            print("=" * 60)
-            print("SINCRONIZACIÓN SIMPLIFICADA DE CLIENTES")
-            print("=" * 60)
-            print(f"Inicio: {inicio.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            
-            df_nuevo = self.cargar_datos()
-            procesados = 0
-            
-            print("=" * 60)
-            print("PROCESANDO CON UPSERT DIRECTO")
-            print("=" * 60)
-            
-            for idx, row in df_nuevo.iterrows():
-                upsert_cliente(self.cursor, row)
-                procesados += 1
-                
-                if idx % 10000 == 0:
-                    print(f"  → Procesados: {procesados}")
-            
-            self._mostrar_resumen_simplificado(procesados, inicio)
-            
-        except Exception as e:
-            print(f"\nERROR: {e}")
-            raise
-    
-    def sincronizar_optimizado(self):
-        try:
-            inicio = datetime.now()
-            print("=" * 60)
-            print("SINCRONIZACIÓN OPTIMIZADA DE CLIENTES")
-            print("=" * 60)
-            print(f"Inicio: {inicio.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            
-            df_nuevo = self.cargar_datos()
-            clientes_actuales = obtener_clientes_actuales(self.cursor)
-            
-            columnas = df_nuevo.columns.tolist()
-            query = generar_upsert_query(columnas)
-            
-            nuevos = actualizados = sin_cambios = 0
-            batch = []
-            
-            dni_excel = set(df_nuevo['dni'])
-            dni_bd = set(clientes_actuales.index)
-            
-            for _, row in tqdm(df_nuevo.iterrows(), total=len(df_nuevo), desc="Procesando"):
-                dni = row['dni']
-                row_dict = row.to_dict()
-                
-                if dni not in clientes_actuales.index:
-                    nuevos += 1
-                    batch.append([row_dict[col] for col in columnas])
-                else:
-                    actual_row = clientes_actuales.loc[dni].to_dict()
-                    if comparar_cambios(row_dict, actual_row):
-                        actualizados += 1
-                        batch.append([row_dict[col] for col in columnas])
-                    else:
-                        sin_cambios += 1
-                
-                if len(batch) >= 500:
-                    self.cursor.executemany(query, batch)
-                    batch = []
-            
-            if batch:
-                self.cursor.executemany(query, batch)
-            
-            # Marcar inactivos
-            inactivos = marcar_clientes_inactivos(self.cursor, dni_bd, dni_excel)
-            
-            # Generar reportes
-            df_actualizados, df_nuevos, df_inactivos = crear_dataframes_resumen(
-                df_nuevo, clientes_actuales, comparar_cambios
-            )
-            
-            archivo_resumen = generar_reportes_excel(
-                df_nuevo, df_actualizados, df_nuevos, df_inactivos
-            )
-            
-            self._mostrar_resumen_optimizado(nuevos, actualizados, sin_cambios, inactivos, archivo_resumen, inicio)
-            
-        except Exception as e:
-            print(f"\nERROR: {e}")
-            raise
-    
-    def _mostrar_resumen_detallado(self, nuevos, actualizados, sin_cambios, inicio):
-        fin = datetime.now()
-        duracion = fin - inicio
+
+    def _compare_dataframes(self, df_excel: pd.DataFrame, df_db: pd.DataFrame):
+        print("\n🔍 Comparando datos para detectar cambios...")
+        if df_excel.empty:
+            dnis_inactivos = set(df_db.index) if not df_db.empty else set()
+            return pd.DataFrame(), pd.DataFrame(), dnis_inactivos
+
+        df_excel_indexed = df_excel.set_index('dni')
+        merged_df = df_excel_indexed.merge(df_db, on='dni', how='outer', suffixes=('_excel', '_db'), indicator=True)
+
+        nuevos_dnis = merged_df[merged_df['_merge'] == 'left_only'].index
+        dnis_inactivos = set(merged_df[merged_df['_merge'] == 'right_only'].index)
         
+        df_comunes = merged_df[merged_df['_merge'] == 'both'].copy()
+        common_cols = [c for c in df_excel_indexed.columns if c in df_db.columns]
+        
+        mask_cambios = pd.Series(False, index=df_comunes.index)
+        for col in common_cols:
+            series_excel_norm = df_comunes[f'{col}_excel'].apply(self._normalize_for_comparison)
+            series_db_norm = df_comunes[f'{col}_db'].apply(self._normalize_for_comparison)
+            mask_cambios |= (series_excel_norm != series_db_norm)
+            
+        actualizados_dnis = df_comunes[mask_cambios].index
+        
+        df_nuevos = df_excel_indexed.loc[nuevos_dnis].reset_index()
+        df_actualizados = df_excel_indexed.loc[actualizados_dnis].reset_index()
+        
+        print(f"  → Detectados: {len(df_nuevos)} nuevos, {len(df_actualizados)} actualizados, {len(dnis_inactivos)} inactivos.")
+        return df_nuevos, df_actualizados, dnis_inactivos
+
+    def _show_detailed_changes(self, df_actualizados: pd.DataFrame, df_db: pd.DataFrame):
         print("\n" + "=" * 60)
-        print("RESUMEN FINAL")
+        print("DETALLE DE CAMBIOS EN CLIENTES ACTUALIZADOS")
         print("=" * 60)
-        print(f" → Nuevos insertados:     {nuevos}")
-        print(f" → Clientes actualizados: {actualizados}")
-        print(f" →  Sin cambios:           {sin_cambios}")
-        print(f" → Duración: {str(duracion)}")
-        print(f" → Finalización: {fin.strftime('%Y-%m-%d %H:%M:%S')}")
-        print("=" * 60)
+        df_actualizados_indexed = df_actualizados.set_index('dni')
+        for dni, row in df_actualizados_indexed.iterrows():
+            print(f"\n🔄 CLIENTE ACTUALIZADO - DNI: {dni}")
+            db_row = df_db.loc[dni]
+            for col, new_val in row.items():
+                norm_new = self._normalize_for_comparison(new_val)
+                norm_old = self._normalize_for_comparison(db_row.get(col))
+                if norm_new != norm_old:
+                    print(f"     • {col}: {db_row.get(col)} → {new_val}")
     
-    def _mostrar_resumen_simplificado(self, procesados, inicio):
-        fin = datetime.now()
-        duracion = fin - inicio
-        
-        print("\n" + "=" * 60)
-        print("RESUMEN DE SINCRONIZACIÓN")
-        print("=" * 60)
-        print(f"Total de clientes procesados: {procesados}")
-        print(f"Duración: {str(duracion)}")
-        print(f"Finalización: {fin.strftime('%Y-%m-%d %H:%M:%S')}")
-        print("=" * 60)
-    
-    def _mostrar_resumen_optimizado(self, nuevos, actualizados, sin_cambios, inactivos, archivo_resumen, inicio):
+    def _mostrar_resumen(self, nuevos, actualizados, inactivos, sin_cambios, archivo_resumen, inicio):
         fin = datetime.now()
         duracion = fin - inicio
         
@@ -210,9 +137,10 @@ class ClienteSynchronizer:
         print("=" * 60)
         print(f" → Nuevos clientes detectados:     {nuevos}")
         print(f" → Clientes actualizados:          {actualizados}")
-        print(f" →  Clientes sin cambios:          {sin_cambios}")
+        print(f" → Clientes sin cambios:           {sin_cambios}")
         print(f" → Clientes marcados como inactivos: {inactivos}")
-        print(f" → Resumen exportado en: {archivo_resumen}")
+        if archivo_resumen:
+            print(f" → Resumen exportado en: {archivo_resumen}")
         print(f" → Duración: {str(duracion)}")
         print(f" → Finalización: {fin.strftime('%Y-%m-%d %H:%M:%S')}")
-        print("=" * 60) 
+        print("=" * 60)
