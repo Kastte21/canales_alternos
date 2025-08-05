@@ -222,11 +222,11 @@ tqdm==4.66.1
 
 ## Notas Importantes
 
----
-
 - **Idempotencia Real:** Ambos módulos están diseñados para ser idempotentes. Puedes ejecutar el script de sincronización de clientes o el de carga de envíos múltiples veces con los mismos datos de entrada y el estado final de la base de datos será el mismo, minimizando operaciones de escritura innecesarias.
 - **Rendimiento de la Comparación:** La comparación de clientes se realiza en memoria utilizando las capacidades vectorizadas de Pandas después de una normalización de datos exhaustiva. Esto es órdenes de magnitud más rápido que iterar y comparar fila por fila.
 - **Consistencia de Datos en `deudacampania`:** El script **ignora deliberadamente** los valores de la columna `deudacampania` del archivo Excel de clientes. En su lugar, la **recalcula** usando la lógica definida en `src/utils/file_handler.py`. Esto garantiza que los datos en la base de datos sean siempre consistentes y correctos, independientemente de la calidad de esa columna en el archivo de origen.
 - **Manejo de "Soft Delete":** Los clientes que desaparecen del archivo Excel no se eliminan de la base de datos. En su lugar, se marcan como inactivos (`activo = false`). Esto preserva el historial y permite reactivarlos si vuelven a aparecer en futuras sincronizaciones.
 - **Limpieza de Datos Automática:** El script realiza limpiezas de datos básicas de forma automática, como eliminar espacios en blanco (`strip()`) de los strings y limpiar el sufijo `.0` de los números de teléfono que a veces añade Excel.
 - **Flexibilidad del Mapeo de Columnas:** Si un nuevo archivo Excel tiene columnas con nombres diferentes, no es necesario modificar el código Python. Simplemente ajusta el archivo `config/mappings.yml` para que coincida con la nueva estructura.
+
+---
