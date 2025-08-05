@@ -7,7 +7,7 @@ clientes_map:
   deudatotal: 'deudatotal'
   deudatotalsoles: 'deudatotalsoles'
   deudatotalacumulado: 'deudatotalacumulado'
-  campaña: 'campania'
+  'campaña': 'campania'
   estado: 'estado'
   subcartera: 'subcartera'
   tipo_contacto: 'tipo_contacto'

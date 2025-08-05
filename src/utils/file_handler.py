@@ -7,7 +7,7 @@ import math
 
 # Cargar la configuración de mapeos una sola vez
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config/mappings.yml"
-with open(CONFIG_PATH, 'r') as f:
+with open(CONFIG_PATH, 'r', encoding="utf-8") as f:
     MAPPINGS = yaml.safe_load(f)
 
 def calcular_deuda_campania(row):
@@ -16,8 +16,8 @@ def calcular_deuda_campania(row):
     Redondea el resultado hacia arriba al entero más cercano.
     """
     try:
-        deuda_base = pd.to_numeric(row.get('deudatotal', row.get('deudatotalacumulado', 0)))
-        campania_str = str(row.get('campania', '0%'))
+        deuda_base = pd.to_numeric(row.get('deudatotalacumulado', row.get('deudatotalacumulado', 0)))
+        campania_str = str(row.get('campania', '0%')).strip()
 
         # Extraer el número del string de campaña (ej: "50%" -> 50)
         match = re.search(r'(\d+\.?\d*)', campania_str)
@@ -27,7 +27,6 @@ def calcular_deuda_campania(row):
         porcentaje_descuento = float(match.group(1))
         
         valor_calculado = deuda_base * (1 - (porcentaje_descuento / 100.0))
-        
         # Redondear hacia ARRIBA al entero más cercano (Ceiling)
         return math.ceil(valor_calculado)
 
@@ -65,7 +64,7 @@ def load_and_map_excel(path: Path, mapping_key: str) -> pd.DataFrame:
     column_map = MAPPINGS.get(mapping_key)
     if not column_map:
         raise ValueError(f"No se encontró la clave de mapeo '{mapping_key}' en mappings.yml")
-    
+
     df.rename(columns=lambda c: c.strip(), inplace=True)
     df.rename(columns=column_map, inplace=True)
     
