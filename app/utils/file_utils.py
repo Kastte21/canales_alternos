@@ -31,6 +31,11 @@ def normalize_column(expr: pl.Expr) -> pl.Expr:
         .otherwise(string_expr)
     )
 
+def normalize_value(val) -> str:
+    if val is None:
+        return ""
+    return str(val).strip().lower()
+
 def load_and_map_excel(path: Path, mapping_key: str) -> pl.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"El archivo {path} no existe.")
@@ -60,7 +65,7 @@ def load_and_map_excel(path: Path, mapping_key: str) -> pl.DataFrame:
             df = df.with_columns(
                 pl.col('fecha_envio').str.to_date(format="%Y-%m-%d", strict=False)
             )
-        
+            
     if mapping_key == 'clientes_map':
         df = df.with_columns(
             _calculate_debt_expression().alias("deudacampania")
@@ -72,7 +77,7 @@ def load_client_data(file_name: str) -> pl.DataFrame:
     file_path = settings.INPUT_DIR / file_name
     return load_and_map_excel(file_path, "clientes_map")
 
-def load_all_shipment_data(dir_name: str) -> pl.DataFrame:
+def load_all_send_data(dir_name: str) -> pl.DataFrame:
     shipment_dir = settings.INPUT_DIR / dir_name
     if not shipment_dir.exists():
         raise FileNotFoundError(f"No se encontró el directorio de envíos: '{shipment_dir}'")
@@ -83,4 +88,20 @@ def load_all_shipment_data(dir_name: str) -> pl.DataFrame:
 
     df_list = [load_and_map_excel(f, "envios_map") for f in all_files]
     
+    return pl.concat(df_list, how="vertical")
+
+def load_all_campaign_data(dir_name: str) -> pl.DataFrame:
+    campaign_dir = settings.INPUT_DIR / dir_name
+    if not campaign_dir.exists():
+        raise FileNotFoundError(f"No se encontró el directorio de campañas: '{campaign_dir}'")
+        
+    all_files = list(campaign_dir.glob('*.xlsx')) + list(campaign_dir.glob('*.xls'))
+    if not all_files:
+        return pl.DataFrame()
+
+    df_list = [load_and_map_excel(f, "campaign_map") for f in all_files]
+    
+    if not df_list:
+        return pl.DataFrame()
+
     return pl.concat(df_list, how="vertical")

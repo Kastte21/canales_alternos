@@ -1,3 +1,4 @@
+# config/mappings.yml
 # Mapeo de columnas para el archivo de Clientes
 # 'nombre_columna_en_excel': 'nombre_columna_en_bd'
 clientes_map:
@@ -30,3 +31,15 @@ envios_map:
   'FECHA': 'fecha_envio'
   'CANAL': 'canal'
   'CARTERA': 'cartera'
+
+# Mapeo de columnas para el archivo de Campañas
+campaign_map:
+  IDCCLIENTE: 'idccliente'
+  CLIENTE: 'cliente'
+  CODCUENTACOBRANZA: 'codcuentacobranza'
+  DEUDATOTALSOL: 'deudatotalsol'
+  CAJAS: 'cajas'
+  DCTO_REG: 'dcto_reg'
+  PLAZO_REG: 'plazo_reg'
+  DCTO_SUB: 'dcto_sub'
+  DCTO_GER: 'dcto_ger'

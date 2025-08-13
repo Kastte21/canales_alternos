@@ -29,9 +29,8 @@ def _show_detailed_changes(df_actualizados: pl.DataFrame, df_db: pl.DataFrame):
             new_val = row[col]
             old_val = row.get(f"{col}_db")
 
-            # Normalizar
-            norm_new = file_utils.normalize_column(pl.lit(new_val)).lit_value.lower()
-            norm_old = file_utils.normalize_column(pl.lit(old_val)).lit_value.lower()
+            norm_new = file_utils.normalize_value(new_val)
+            norm_old = file_utils.normalize_value(old_val)
 
             if norm_new != norm_old:
                 logger.info(f"     • {col}: '{old_val}' → '{new_val}'")

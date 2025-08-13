@@ -26,7 +26,7 @@ def _add_row_hash_to_df(df: pl.DataFrame) -> pl.DataFrame:
 def run_send_synchronization():
     logger.info("INICIANDO CARGA DE ENVÍOS")
 
-    df_origen = file_utils.load_all_shipment_data(settings.SEND_SOURCE_DIR)
+    df_origen = file_utils.load_all_send_data(settings.SEND_SOURCE_DIR)
     if df_origen.is_empty():
         logger.warning("No se encontraron datos de envíos válidos para procesar.")
         return

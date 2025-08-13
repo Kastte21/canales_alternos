@@ -30,3 +30,4 @@ except FileNotFoundError:
 # --- Application Constants ---
 CLIENT_SOURCE_FILE = "DATOS_ESTRATEGIA.xlsx"
 SEND_SOURCE_DIR = "CONSOLIDADO"
+CAMPANIA_SOURCE_DIR = "CAMPANIA"

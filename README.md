@@ -2,10 +2,11 @@
 
 Este proyecto ofrece una solución robusta y de alto rendimiento para sincronizar datos desde archivos Excel hacia una base de datos PostgreSQL. Ha sido completamente refactorizado para procesar grandes volúmenes de datos de manera eficiente, precisa y segura, utilizando operaciones en lote y una arquitectura modular y escalable.
 
-Incluye dos módulos principales:
+Incluye tres módulos principales:
 
 1. **Sincronización de Clientes:** Compara un archivo excel de clientes con la base de datos, identificando registros nuevos, actualizados e inactivos, y aplicando los cambios en lote.
 2. **Carga de Envíos:** Carga archivos consolidados de canales de forma idempotente, verificando si los datos han cambiado antes de realizar cualquier operación en la base de datos.
+3. **Carga de Campañas:** Actualiza completamente la información de campañas en la base de datos.
 
 ---
 
@@ -48,15 +49,12 @@ Incluye dos módulos principales:
 
 ## Estructura del Proyecto
 
-La estructura ha sido simplificada y optimizada para eliminar redundancia y mejorar la mantenibilidad.
-
-## Estructura del Proyecto
-
 ```
 Carga_CANALES_ALTERNOS/
 ├── app/                      		# Módulo principal de la aplicación
 │   ├── logic/                		# Lógica de negocio
 │   │   ├── __init__.py
+│   │   ├── campaign_synchronizer.py  	# Sincronización de campañas
 │   │   ├── client_synchronizer.py  	# Sincronización de clientes
 │   │   └── send_synchronizer.py    	# Sincronización de envíos
 │   ├── utils/
@@ -69,14 +67,14 @@ Carga_CANALES_ALTERNOS/
 ├── config/
 │   └── mappings.yml         		# Mapeo de columnas Excel -> BD
 ├── data/
-│   ├── input/              		# Archivos de entrada
+│   ├── input/
 │   │   ├── DATOS_ESTRATEGIA.xlsx
 │   │   └── CONSOLIDADO/
-│   │       └── CONSOLIDADO_CA_*.xlsx
-│   └── output/             		# Archivos de salida
+│   │   └── CAMPANIA/
+│   └── output/
 │       └── resumen_sincronizacion.xlsx
-├── .env                   		# Variables de entorno
-├── main.py               		# Script principal
+├── .env
+├── main.py
 ├── requirements.txt
 └── README.md
 ```
@@ -138,6 +136,24 @@ Debe contener las siguientes columnas:
 - `CANAL` (tipo de canal: CORREO, SMS, etc.)
 - `CARTERA`
 
+### Archivos de Campañas (`data/input/CAMPANIA/*.xlsx`)
+
+Debe contener las siguientes columnas:
+
+- `IDCCLIENTE`
+- `CLIENTE`
+- `CODCUENTACOBRANZA`
+- `PRODUCTO`
+- `MESES_CASTIGO_CLI`
+- `DEUDATOTALSOL`
+- `TIPO_CLI_2`
+- `CAJAS`
+- `GRUPO`
+- `DCTO_REG`
+- `PLAZO_REG`
+- `DCTO_SUB`
+- `DCTO_GER`
+
 ## Tablas de Base de Datos
 
 ### Tabla `clientes`
@@ -182,6 +198,26 @@ CREATE TABLE envios_canales (
 );
 ```
 
+### Tabla `campanias`
+
+```sql
+CREATE TABLE campanias (
+    id SERIAL PRIMARY KEY,
+    idccliente VARCHAR(20) NOT NULL,
+    cliente VARCHAR(255),
+    codcuentacobranza VARCHAR(50) NOT NULL,
+    deudatotalsol DOUBLE PRECISION,
+    cajas VARCHAR(50),
+    dcto_reg NUMERIC(5, 4),
+    plazo_reg INTEGER,
+    dcto_sub NUMERIC(5, 4),
+    dcto_ger NUMERIC(5, 4),
+    fecha_carga TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    UNIQUE (idccliente, codcuentacobranza)
+);
+```
+
 ## Uso
 
 ### Script Principal con Menú
@@ -199,14 +235,16 @@ Aparecerá el menú principal con las opciones optimizadas:
  1. Cargar Clientes (Rápido, con reporte)
  2. Cargar Clientes (Modo Auditoría Detallada)
  3. Cargar Envíos desde CONSOLIDADO
- 4. Salir
+ 4. Cargar Campaña (Reemplazo Mensual) 
+ 5. Salir
 ============================================================
-Seleccione una opción (1-4):
+Seleccione una opción (1-5):
 ```
 
 - **Opción 1:** La opción estándar para producción. Rápida, eficiente y genera el reporte en Excel.
 - **Opción 2:** Ideal para depuración. Hace lo mismo que la opción 1, pero además imprime en consola los valores exactos que cambiaron para cada cliente actualizado.
 - **Opción 3:** Carga los envíos.
+- **Opción 4:** Carga base de las campañas.
 
 ## Reportes Generados
 

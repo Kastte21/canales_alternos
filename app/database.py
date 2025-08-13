@@ -86,3 +86,22 @@ def copy_send_from_df(cursor, df: pl.DataFrame):
     
     cursor.copy_expert(f"COPY envios_canales ({','.join(existing_cols_in_df)}) FROM STDIN WITH CSV", s_buf)
     return cursor.rowcount
+
+# --- Campaign Queries ---
+def truncate_campaigns(cursor):
+    cursor.execute("TRUNCATE TABLE campanias RESTART IDENTITY;")
+
+def copy_campaigns_from_df(cursor, df: pl.DataFrame):
+    if df.is_empty():
+        return 0
+        
+    s_buf = StringIO()
+    
+    # Obtener las columnas del DataFrame para asegurar que coincidan
+    cols = df.columns
+    
+    df.write_csv(s_buf, include_header=False)
+    s_buf.seek(0)
+    
+    cursor.copy_expert(f"COPY campanias ({','.join(cols)}) FROM STDIN WITH CSV", s_buf)
+    return cursor.rowcount
