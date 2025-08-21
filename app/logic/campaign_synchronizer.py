@@ -22,10 +22,10 @@ def run_campaign_synchronization():
             logger.info("Limpiando la tabla de campañas existentes...")
             db.truncate_campaigns(cursor)
             
-            logger.info("Cargando nuevos registros de campañas...")
+            logger.info("Cargando registros de campañas...")
             inserted_count = db.copy_campaigns_from_df(cursor, df_campaigns)
             
-            logger.info(f"✅ Se han insertado con éxito {inserted_count} nuevos registros de campaña.")
+            logger.info(f"✅ Se han insertado con éxito {inserted_count} registros de campaña.")
 
     except FileNotFoundError as e:
         logger.error(f"❌ Error de directorio: {e}")

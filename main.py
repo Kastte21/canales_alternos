@@ -10,8 +10,7 @@ logging.basicConfig(
 )
 
 try:
-    # Importar el nuevo sincronizador
-    from app.logic import client_synchronizer, send_synchronizer, campaign_synchronizer
+    from app.logic import client_synchronizer, send_synchronizer, campaign_synchronizer, mail_synchronizer
 except ImportError as e:
     logging.error(f"Error al importar módulos de la aplicación: {e}")
     logging.error("Asegúrate de que la estructura del proyecto y los archivos __init__.py son correctos.")
@@ -26,14 +25,15 @@ def show_menu():
     print(" 2. Cargar Clientes (Modo Auditoría Detallada)")
     print(" 3. Cargar Envíos desde CONSOLIDADO")
     print(" 4. Cargar Campaña (Reemplazo Mensual)")
-    print(" 5. Salir")
+    print(" 5. Cargar Mails Información Adicional (Reemplazo Mensual)")
+    print(" 6. Salir")
     print("=" * 60)
 
 def main():
     """Bucle principal de la aplicación."""
     while True:
         show_menu()
-        option = input("Seleccione una opción (1-5): ").strip()
+        option = input("Seleccione una opción (1-6): ").strip()
         
         start_time = datetime.now()
         process_executed = False
@@ -51,15 +51,22 @@ def main():
                 process_executed = True
 
             elif option == "4":
-                confirm = input("  Esta operación borrará TODAS las campañas existentes. ¿Desea continuar? (s/n): ").lower()
+                confirm = input("⚠️  Esta operación borrará TODAS las campañas existentes. ¿Desea continuar? (s/n): ").lower()
                 if confirm == 's':
                     campaign_synchronizer.run_campaign_synchronization()
                     process_executed = True
                 else:
                     logging.info("Operación de carga de campaña cancelada por el usuario.")
-            # --------------------
             
             elif option == "5":
+                confirm = input("⚠️  Esta operación borrará TODOS los mails existentes. ¿Desea continuar? (s/n): ").lower()
+                if confirm == 's':
+                    mail_synchronizer.run_mail_synchronization()
+                    process_executed = True
+                else:
+                    logging.info("Operación de carga de mails cancelada por el usuario.")
+            
+            elif option == "6":
                 print("\n👋 ¡Hasta luego!")
                 sys.exit(0)
             

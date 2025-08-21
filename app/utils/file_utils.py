@@ -105,3 +105,19 @@ def load_all_campaign_data(dir_name: str) -> pl.DataFrame:
         return pl.DataFrame()
 
     return pl.concat(df_list, how="vertical")
+
+def load_all_mails_data(dir_name: str) -> pl.DataFrame:
+    mails_dir = settings.INPUT_DIR / dir_name
+    if not mails_dir.exists():
+        raise FileNotFoundError(f"No se encontró el directorio de Mails: '{mails_dir}'")
+        
+    all_files = list(mails_dir.glob('*.xlsx')) + list(mails_dir.glob('*.xls'))
+    if not all_files:
+        return pl.DataFrame()
+
+    df_list = [load_and_map_excel(f, "mails_map") for f in all_files]
+    
+    if not df_list:
+        return pl.DataFrame()
+
+    return pl.concat(df_list, how="vertical")

@@ -43,3 +43,9 @@ campaign_map:
   PLAZO_REG: 'plazo_reg'
   DCTO_SUB: 'dcto_sub'
   DCTO_GER: 'dcto_ger'
+
+  # Mapeo de columnas para el archivo de Mails
+mails_map:
+  IDCCLIENTE: 'idccliente'
+  EMAIL: 'email'
+  RANKING: 'ranking'

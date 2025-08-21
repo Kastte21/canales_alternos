@@ -97,7 +97,6 @@ def copy_campaigns_from_df(cursor, df: pl.DataFrame):
         
     s_buf = StringIO()
     
-    # Obtener las columnas del DataFrame para asegurar que coincidan
     cols = df.columns
     
     df.write_csv(s_buf, include_header=False)
@@ -105,3 +104,21 @@ def copy_campaigns_from_df(cursor, df: pl.DataFrame):
     
     cursor.copy_expert(f"COPY campanias ({','.join(cols)}) FROM STDIN WITH CSV", s_buf)
     return cursor.rowcount
+
+# --- Mails Queries ---
+def truncate_mails(cursor):
+    cursor.execute("TRUNCATE TABLE mails RESTART IDENTITY;")
+
+def copy_mails_from_df(cursor, df: pl.DataFrame):
+    if df.is_empty():
+        return 0
+        
+    s_buf = StringIO()
+    cols = df.columns
+    
+    df.write_csv(s_buf, include_header=False)
+    s_buf.seek(0)
+    
+    cursor.copy_expert(f"COPY mails ({','.join(cols)}) FROM STDIN WITH CSV", s_buf)
+    return cursor.rowcount
+    
