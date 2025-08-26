@@ -56,8 +56,8 @@ Carga_CANALES_ALTERNOS/
 │   ├── cargar.ipynb                 # Notebook de análisis
 │   └── bases de datos.psql          # Scripts SQL
 ├── main.py                          # Script principal con menú
-├── requirements.txt                  # Dependencias
-└── README.md                        # Este archivo
+├── requirements.txt
+└── README.md
 ```
 
 ## Tipos de Sincronización
