@@ -63,8 +63,10 @@ def bulk_deactivate_clients(cursor, dnis_to_deactivate: Set[str]):
     if not dnis_to_deactivate:
         return 0
     
-    query = "UPDATE clientes SET activo = false WHERE dni IN %s"
-    execute_values(cursor, query, [(list(dnis_to_deactivate),)], page_size=2000)
+    #query = "UPDATE clientes SET activo = false WHERE dni IN %s"
+    #execute_values(cursor, query, [(list(dnis_to_deactivate),)], page_size=2000)
+    query = "UPDATE clientes SET activo = false WHERE dni = ANY(%s::VARCHAR[])"
+    cursor.execute(query, (list(dnis_to_deactivate),))
     return len(dnis_to_deactivate)
 
 # --- Send Queries ---
@@ -121,4 +123,20 @@ def copy_mails_from_df(cursor, df: pl.DataFrame):
     
     cursor.copy_expert(f"COPY mails ({','.join(cols)}) FROM STDIN WITH CSV", s_buf)
     return cursor.rowcount
-    
+
+# --- Mails Queries SEARCH ---
+def truncate_mailssearch(cursor):
+    cursor.execute("TRUNCATE TABLE mailssearch RESTART IDENTITY;")
+
+def copy_mailssearch_from_df(cursor, df: pl.DataFrame):
+    if df.is_empty():
+        return 0
+
+    s_buf = StringIO()
+    cols = df.columns
+
+    df.write_csv(s_buf, include_header=False)
+    s_buf.seek(0)
+
+    cursor.copy_expert(f"COPY mailssearch ({','.join(cols)}) FROM STDIN WITH CSV", s_buf)
+    return cursor.rowcount

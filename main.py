@@ -17,7 +17,6 @@ except ImportError as e:
     sys.exit(1)
 
 def show_menu():
-    """Muestra el menú principal de la aplicación."""
     print("\n" + "=" * 60)
     print("                       MENÚ PRINCIPAL ")
     print("=" * 60)
@@ -30,7 +29,6 @@ def show_menu():
     print("=" * 60)
 
 def main():
-    """Bucle principal de la aplicación."""
     while True:
         show_menu()
         option = input("Seleccione una opción (1-6): ").strip()
@@ -51,7 +49,7 @@ def main():
                 process_executed = True
 
             elif option == "4":
-                confirm = input("⚠️  Esta operación borrará TODAS las campañas existentes. ¿Desea continuar? (s/n): ").lower()
+                confirm = input("\u26A0\uFE0F  Esta operación borrará TODAS las campañas existentes. ¿Desea continuar? (s/n): ").lower()
                 if confirm == 's':
                     campaign_synchronizer.run_campaign_synchronization()
                     process_executed = True
@@ -59,15 +57,26 @@ def main():
                     logging.info("Operación de carga de campaña cancelada por el usuario.")
             
             elif option == "5":
-                confirm = input("⚠️  Esta operación borrará TODOS los mails existentes. ¿Desea continuar? (s/n): ").lower()
+                confirm = input("\u26A0\uFE0F  Esta operación borrará TODOS los mails existentes. ¿Desea continuar? (s/n): ").lower()
                 if confirm == 's':
-                    mail_synchronizer.run_mail_synchronization()
-                    process_executed = True
+                    print("\nSeleccione la base de destino:")
+                    print(" 1. Mails SOLO BCP (tabla: mails)")
+                    print(" 2. Mails BCP + SEARCH (tabla: mailssearch)")
+                    sub_option = input("Ingrese una opción (1-2): ").strip()
+
+                    if sub_option == "1":
+                        mail_synchronizer.run_mail_synchronization(target="mails")
+                        process_executed = True
+                    elif sub_option == "2":
+                        mail_synchronizer.run_mail_synchronization(target="mailssearch")
+                        process_executed = True
+                    else:
+                        logging.warning("Opción de base no válida. Operación cancelada.")
                 else:
                     logging.info("Operación de carga de mails cancelada por el usuario.")
             
             elif option == "6":
-                print("\n👋 ¡Hasta luego!")
+                print("\n\U0001F44B ¡Hasta luego!")
                 sys.exit(0)
             
             else:

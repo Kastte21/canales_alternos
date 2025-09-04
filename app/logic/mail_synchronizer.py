@@ -25,11 +25,10 @@ def _deduplicate_by_ranking(df: pl.DataFrame) -> pl.DataFrame:
 
     return df_deduplicated
 
-def run_mail_synchronization():
-    logger.info("INICIANDO CARGA DE MAILS")
-    
+def run_mail_synchronization(target: str = "mails"):
+    logger.info(f"INICIANDO CARGA DE MAILS en la tabla '{target}'")
+
     try:
-        # 1. Cargar y mapear los datos de todos los archivos en la carpeta de Mails
         df_mails = file_utils.load_all_mails_data(settings.MAILS_SOURCE_DIR)
 
         if df_mails.is_empty():
@@ -38,24 +37,35 @@ def run_mail_synchronization():
 
         logger.info(f"Se han procesado {len(df_mails)} registros desde la carpeta '{settings.MAILS_SOURCE_DIR}'.")
 
-        # 2. Limpiar y validar datos antes de la deduplicación
         df_cleaned = df_mails.drop_nulls(subset=["idccliente", "email", "ranking"])
-        
-        # 3. Aplicar la lógica de deduplicación por ranking
         df_final = _deduplicate_by_ranking(df_cleaned)
 
-        # 4. Conectar a la BD y realizar la operación
         with db.get_db_connection(commit=True) as cursor:
-            logger.info("Limpiando la tabla de mails existentes...")
-            db.truncate_mails(cursor)
-            
-            logger.info("Cargando registros de mails...")
-            inserted_count = db.copy_mails_from_df(cursor, df_final)
-            
-            logger.info(f"✅ Se han insertado con éxito {inserted_count} registros de mails.")
+            if target == "mails":
+                logger.info("Limpiando la tabla mails...")
+                db.truncate_mails(cursor)
+                logger.info("Cargando registros en mails...")
+                inserted_count = db.copy_mails_from_df(cursor, df_final)
+
+            elif target == "mailssearch":
+                logger.info("Limpiando la tabla mailssearch...")
+                db.truncate_mailssearch(cursor)
+                logger.info("Cargando registros en mailssearch...")
+                inserted_count = db.copy_mailssearch_from_df(cursor, df_final)
+
+            else:
+                raise ValueError(f"Destino desconocido: {target}")
+
+        logger.info(f"\u2705 Se han insertado con éxito {inserted_count} registros en la tabla '{target}'.")
 
     except FileNotFoundError as e:
-        logger.error(f"❌ Error de directorio: {e}")
+        logger.error(f"\u274C Error de directorio: {e}")
+    except Exception as e:
+        logger.critical(f"Falló la carga de mails: {e}", exc_info=True)
+        raise
+
+    except FileNotFoundError as e:
+        logger.error(f"\u274C Error de directorio: {e}")
     except Exception as e:
         logger.critical(f"Falló la carga de mails: {e}", exc_info=True)
         raise
